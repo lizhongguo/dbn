@@ -67,8 +67,10 @@ class rbm:
         self.c2=self.W
 
     def sigmrnd(self,X):
-        return np.float32(1./(1.+np.exp(-X)) > np.random.random(X.shape))
+        return np.float32((1./(1.+np.exp(-X))) > np.random.random(X.shape))
 
+    def sigm(self,X):
+        return np.float32(1./(1.+np.exp(-X)))
 
     def train(self,X):
         print 'begin train , X.shape',X.shape,'numepochs:',self.numepochs
@@ -106,7 +108,7 @@ class rbm:
         if(k):
             return self.sigmrnd(ret)
         else:
-            return ret
+            return self.sigm(ret)
 
     def h2v(self,h,k = True):
         if len(h.shape) == 2:
@@ -117,7 +119,7 @@ class rbm:
         if(k):
             return self.sigmrnd(ret)
         else:
-            return ret
+            return self.sigm(ret)
 
 
 class dbn:
@@ -144,24 +146,55 @@ class dbn:
 
     def h2v(self,X):
         for j in range(len(self.sizes)-1):
-            X = self.rbms[len(self.sizes)-j-1].h2v(X);
+            if j == len(self.sizes)-2:
+                X = self.rbms[len(self.sizes)-j-2].h2v(X,False);
+            else:
+                X = self.rbms[len(self.sizes)-j-2].h2v(X)
         return X
 
     def predict(self, X):
         return self.h2v(self.v2h(X))
 
 
-size_test = [X.shape[1], 100]
-rbm1=rbm(size_test, 0.01, 10)
-rbm1.train(X)
+size_test = [X.shape[1], 100, 10]
 
-im=Image.open('2.bmp')
-t=np.array(im)
-tt=[]
-for i in t:
-    for j in i:
-        tt.append(j/255.0)
-for k in range(10):
-        tt.append(0);
+if os.path.exists('dbn.bin'):
+    f_dbn = open('dbn.bin','rb')
+    dbn1 = pickle.load(f_dbn)
+else:
+    f_dbn = open('dbn.bin','wb')
+    dbn1=dbn(size_test, 0.01, 30)
+    dbn1.train(X)
+    pickle.dump(dbn1,f_dbn)
 
-print rbm1.h2v(rbm1.v2h(np.asarray(tt)),False)[-10:]
+#im=Image.open('3.bmp')
+#t=np.array(im)
+#tt=[]
+#for i in t:
+#    for j in i:
+#        tt.append(j/255.0)
+#for k in range(10):
+#        tt.append(0);
+
+def predict(X):
+    l = dbn1.predict(X)[:,-10:]
+    return l.argmax(1)
+
+
+Y = idx2numpy.convert_from_file("train-labels-idx1-ubyte")
+Y_test = Y[5000:]
+
+result = np.reshape(predict(np.asarray(X_test)),-1).tolist()[0]
+print len(result)
+
+result_right = [0,0,0,0,0,0,0,0,0,0]
+result_sum = [0,0,0,0,0,0,0,0,0,0]
+
+for r,y in zip(result,Y_test):
+    #print r,y
+    if r == y:
+        result_right[r] = result_sum[r]+1
+    result_sum[r] = result_sum[r] + 1
+
+for i in range(10):
+    print str(i) +  ' accuraccy:  ' + str(float(result_right[i])/float(result_sum[i]))
